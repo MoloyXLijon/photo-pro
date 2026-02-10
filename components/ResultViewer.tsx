@@ -25,7 +25,7 @@ export const ResultViewer: React.FC<ResultViewerProps> = ({ isLoading, resultIma
       <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center bg-red-50 rounded-xl border border-red-200 p-6 text-center">
         <AlertCircle size={48} className="text-red-500 mb-4" />
         <h3 className="text-lg font-semibold text-red-700 mb-2">Generation Failed</h3>
-        <p className="text-red-600 mb-6 max-w-xs">{error}</p>
+        <p className="text-red-600 mb-6 max-w-md">{error}</p>
         <button
           onClick={onRetry}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm"

@@ -25,3 +25,40 @@ export const downloadImage = (dataUrl: string, filename: string) => {
   link.click();
   document.body.removeChild(link);
 };
+
+export const resizeImage = (dataUrl: string, maxWidth = 1024): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = dataUrl;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Calculate new dimensions while maintaining aspect ratio
+      if (width > maxWidth || height > maxWidth) {
+        const ratio = Math.min(maxWidth / width, maxWidth / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      
+      // Use high quality interpolation
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convert to JPEG with 0.85 quality to reduce size while maintaining good visual quality
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = (err) => reject(err);
+  });
+};
