@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ImageUpload } from './components/ImageUpload';
 import { ResultViewer } from './components/ResultViewer';
 import { HistoryList } from './components/HistoryList';
 import { generateIdPhoto } from './services/gemini';
-import { Sparkles, User, ShieldCheck, Camera } from 'lucide-react';
+import { Sparkles, User, ShieldCheck, Camera, Clock } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -13,6 +13,20 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customInstructions, setCustomInstructions] = useState<string>("black formal suit and tie");
+  const [cooldown, setCooldown] = useState(0);
+
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cooldown]);
 
   const handleImageSelect = (data: string, type: string) => {
     setSelectedImage(data);
@@ -53,7 +67,13 @@ const App: React.FC = () => {
       setResultImage(generatedImage);
       setHistory(prev => [generatedImage, ...prev]);
     } catch (err: any) {
-      setError(err.message || "Failed to generate image. Please try again.");
+      const errorMessage = err.message || "Failed to generate image. Please try again.";
+      setError(errorMessage);
+      
+      // If we hit a rate limit, force a cooldown to prevent spamming
+      if (errorMessage.includes("Rate Limit") || errorMessage.includes("429") || errorMessage.includes("Busy")) {
+        setCooldown(60);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -139,9 +159,9 @@ const App: React.FC = () => {
 
                 <button
                   onClick={handleGenerate}
-                  disabled={!selectedImage || isLoading}
+                  disabled={!selectedImage || isLoading || cooldown > 0}
                   className={`w-full py-3.5 px-6 rounded-xl font-bold text-white shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 ${
-                    !selectedImage || isLoading
+                    !selectedImage || isLoading || cooldown > 0
                       ? 'bg-slate-300 cursor-not-allowed shadow-none'
                       : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/25'
                   }`}
@@ -150,6 +170,11 @@ const App: React.FC = () => {
                     <>
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Processing...
+                    </>
+                  ) : cooldown > 0 ? (
+                    <>
+                      <Clock size={20} />
+                      Wait {cooldown}s
                     </>
                   ) : (
                     <>
