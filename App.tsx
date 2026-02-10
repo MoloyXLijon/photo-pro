@@ -34,15 +34,15 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    // Highly optimized prompt for ID photos
-    const prompt = `Task: Create a professional passport-size ID photo from this image.
+    // Highly optimized prompt for ID photos with strict face preservation
+    const prompt = `Task: Photo editing. Create a professional passport ID photo.
     
-    CRITICAL RULES:
-    1. FACE PRESERVATION: STRICTLY Keep the person's face, hair, and head shape EXACTLY as they are. Do NOT modify facial features.
-    2. ATTIRE: Change the person's clothing to a professional ${customInstructions}. Ensure it fits naturally over the shoulders.
-    3. BACKGROUND: Change the background to a clean, solid WHITE background.
-    4. FORMAT: Crop the image to a 3:4 aspect ratio (Passport size). Center the person properly.
-    5. QUALITY: Ensure studio-like lighting on the face and high resolution.`;
+    STRICT RULES:
+    1. FACE PRESERVATION: DO NOT CHANGE THE FACE. Keep the facial features, skin texture, and head shape 100% IDENTICAL to the original. This is the most important rule.
+    2. CLOTHING: Replace the outfit with a ${customInstructions}. It must look realistic and fit the neck/shoulders perfectly.
+    3. BACKGROUND: Change background to a solid clean WHITE color.
+    4. CROP: Passport size (3:4 ratio), head centered, shoulders visible.
+    5. LIGHTING: Ensure even, professional lighting on the face.`;
 
     try {
       const generatedImage = await generateIdPhoto({

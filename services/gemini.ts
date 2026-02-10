@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { extractBase64Data, resizeImage } from '../utils/file';
 
-const apiKey = (process.env.API_KEY || '').trim();
-const ai = new GoogleGenAI({ apiKey });
+// Initialize the API client using process.env.API_KEY directly as per guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 interface EditImageOptions {
   imageBase64: string; // Full Data URL
@@ -20,11 +20,6 @@ const getErrorMessage = (error: any): string => {
 };
 
 export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditImageOptions): Promise<string> => {
-  // Check for placeholder or missing key
-  if (!apiKey || apiKey.includes('YOUR_') || apiKey.length < 10) {
-    throw new Error("API Key is not set correctly. Please replace the placeholder in your .env file with your actual Google Gemini API Key.");
-  }
-
   // 1. Resize image to max 512px (Further reduced to minimize token usage and avoid Quota errors)
   let processedBase64 = imageBase64;
   try {
@@ -77,6 +72,11 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
       console.error(`Gemini API Error (Attempt ${attempt + 1}):`, errorMsg);
       lastError = error;
       
+      // CRITICAL: Check for Leaked Key or Permission Denied immediately
+      if (errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('API_KEY_INVALID')) {
+         throw new Error("CRITICAL: API Key issue detected. Please check your configuration.");
+      }
+
       const isQuotaError = 
         error.status === 429 || 
         error.status === 503 || 
@@ -106,9 +106,13 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
   if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota') || finalErrorMessage.includes('RESOURCE_EXHAUSTED')) {
     throw new Error("Server is extremely busy (Free Tier Limit Reached). Please wait at least 1 full minute before trying again.");
   }
+  
+  if (finalErrorMessage.includes('leaked') || finalErrorMessage.includes('PERMISSION_DENIED')) {
+      throw new Error("CRITICAL: API Key blocked or invalid. Please check your configuration.");
+  }
 
   if (finalErrorMessage.includes('API_KEY_INVALID')) {
-    throw new Error("Invalid API Key. Please check your .env file.");
+    throw new Error("Invalid API Key.");
   }
 
   throw new Error(`Error: ${finalErrorMessage}`);
