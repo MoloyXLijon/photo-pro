@@ -1,8 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { extractBase64Data, resizeImage } from '../utils/file';
 
-// Initialize the API client using process.env.API_KEY directly as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Robustly clean the API key in case of copy-paste errors in .env
+const rawApiKey = process.env.API_KEY || '';
+// Removes 'YOUR_API_KEY_HERE', 'API_KEY=', and extra spaces
+const apiKey = rawApiKey
+  .replace(/YOUR_API_KEY_HERE/g, '')
+  .replace(/API_KEY=/g, '')
+  .trim();
+
+const ai = new GoogleGenAI({ apiKey });
 
 interface EditImageOptions {
   imageBase64: string; // Full Data URL
@@ -20,6 +27,11 @@ const getErrorMessage = (error: any): string => {
 };
 
 export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditImageOptions): Promise<string> => {
+  // Check for invalid key length after cleaning
+  if (apiKey.length < 20) {
+    throw new Error("API Key configuration error. Please check your .env file and restart the server.");
+  }
+
   // 1. Resize image to max 512px (Further reduced to minimize token usage and avoid Quota errors)
   let processedBase64 = imageBase64;
   try {
@@ -74,7 +86,7 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
       
       // CRITICAL: Check for Leaked Key or Permission Denied immediately
       if (errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('API_KEY_INVALID')) {
-         throw new Error("CRITICAL: API Key issue detected. Please check your configuration.");
+         throw new Error("CRITICAL: API Key issue detected. Please check your .env file and RESTART the server.");
       }
 
       const isQuotaError = 
