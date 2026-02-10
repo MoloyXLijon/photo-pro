@@ -56,8 +56,8 @@ export const resizeImage = (dataUrl: string, maxWidth = 1024): Promise<string> =
       
       ctx.drawImage(img, 0, 0, width, height);
       
-      // Convert to JPEG with 0.85 quality to reduce size while maintaining good visual quality
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
+      // Convert to JPEG with 0.8 quality to reduce size while maintaining good visual quality
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
     };
     img.onerror = (err) => reject(err);
   });

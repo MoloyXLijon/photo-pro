@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { extractBase64Data, resizeImage } from '../utils/file';
 
-const apiKey = process.env.API_KEY || '';
+const apiKey = (process.env.API_KEY || '').trim();
 const ai = new GoogleGenAI({ apiKey });
 
 interface EditImageOptions {
@@ -25,10 +25,11 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
     throw new Error("API Key is not set correctly. Please replace the placeholder in your .env file with your actual Google Gemini API Key.");
   }
 
-  // 1. Resize image to max 1024px to reduce token usage
+  // 1. Resize image to max 512px (Further reduced to minimize token usage and avoid Quota errors)
   let processedBase64 = imageBase64;
   try {
-    processedBase64 = await resizeImage(imageBase64, 1024);
+    // Reduced to 512px. This is sufficient for ID photo previews and significantly reduces payload size (Tokens).
+    processedBase64 = await resizeImage(imageBase64, 512); 
   } catch (e) {
     console.warn("Image resize failed, using original:", e);
   }
@@ -56,12 +57,6 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
             },
           ],
         },
-        config: {
-          // Set aspect ratio to 3:4 for Passport Size photos
-          // Note: imageConfig support depends on the specific model version capabilities
-          // If the model ignores this, we rely on the prompt instructions.
-          // For gemini-2.5-flash-image, prompt is primary, but we pass config if supported.
-        }
       });
 
       const parts = response.candidates?.[0]?.content?.parts;
@@ -84,13 +79,20 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
       
       const isQuotaError = 
         error.status === 429 || 
+        error.status === 503 || 
         errorMsg.includes('429') || 
+        errorMsg.includes('503') || 
         errorMsg.includes('quota') || 
-        errorMsg.includes('RESOURCE_EXHAUSTED');
+        errorMsg.includes('RESOURCE_EXHAUSTED') ||
+        errorMsg.includes('Overloaded');
 
       if (isQuotaError && attempt < MAX_ATTEMPTS - 1) {
-        const delay = 3000 * (attempt + 1);
-        console.log(`Rate limited. Retrying in ${delay}ms...`);
+        // The free tier has a limit of ~2 requests per minute.
+        // We must wait long enough to cross the minute boundary to reset the quota.
+        // Attempt 0: Wait 15 seconds
+        // Attempt 1: Wait 40 seconds (Total 55s wait, almost a full minute)
+        const delay = attempt === 0 ? 15000 : 40000;
+        console.log(`Quota limit hit (429). Waiting ${delay/1000}s for quota to reset...`);
         await wait(delay);
         continue;
       }
@@ -101,13 +103,13 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
 
   const finalErrorMessage = getErrorMessage(lastError);
   
-  if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota')) {
-    throw new Error("Server is busy (Rate Limit). Please try again in 30 seconds.");
+  if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota') || finalErrorMessage.includes('RESOURCE_EXHAUSTED')) {
+    throw new Error("Server is extremely busy (Free Tier Limit Reached). Please wait at least 1 full minute before trying again.");
   }
 
   if (finalErrorMessage.includes('API_KEY_INVALID')) {
     throw new Error("Invalid API Key. Please check your .env file.");
   }
 
-  throw new Error(finalErrorMessage || "Failed to generate image. Please try again.");
+  throw new Error(`Error: ${finalErrorMessage}`);
 };
