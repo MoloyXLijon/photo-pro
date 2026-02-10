@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ImageUpload } from './components/ImageUpload';
 import { ResultViewer } from './components/ResultViewer';
+import { HistoryList } from './components/HistoryList';
 import { generateIdPhoto } from './services/gemini';
 import { Sparkles, User, ShieldCheck, Camera } from 'lucide-react';
 
@@ -8,6 +9,7 @@ const App: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('');
   const [resultImage, setResultImage] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customInstructions, setCustomInstructions] = useState<string>("white background, wearing a formal black suit jacket and tie");
@@ -47,6 +49,8 @@ const App: React.FC = () => {
         prompt,
       });
       setResultImage(generatedImage);
+      // Add new image to the beginning of the history array
+      setHistory(prev => [generatedImage, ...prev]);
     } catch (err: any) {
       setError(err.message || "Failed to generate image. Please try again.");
     } finally {
@@ -170,7 +174,7 @@ const App: React.FC = () => {
 
           {/* Right Column: Output */}
           <div className="lg:sticky lg:top-24">
-             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-full min-h-[500px] flex flex-col">
+             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 min-h-[500px] flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold">3</span>
@@ -188,6 +192,9 @@ const App: React.FC = () => {
                 />
               </div>
             </div>
+
+            {/* History Section */}
+            <HistoryList history={history} onSelect={setResultImage} />
           </div>
         </div>
       </main>
