@@ -15,18 +15,17 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const getErrorMessage = (error: any): string => {
   if (typeof error === 'string') return error;
   if (error?.message) return error.message;
-  // Handle nested error objects from Google API
   if (error?.error?.message) return error.error.message; 
   return JSON.stringify(error);
 };
 
 export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditImageOptions): Promise<string> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your environment variables.");
+  // Check for placeholder or missing key
+  if (!apiKey || apiKey.includes('YOUR_') || apiKey.length < 10) {
+    throw new Error("API Key is not set correctly. Please replace the placeholder in your .env file with your actual Google Gemini API Key.");
   }
 
-  // 1. Resize image to max 1024px to reduce token usage and payload size
-  // This helps avoid timeouts and reduces resource usage on the API side
+  // 1. Resize image to max 1024px to reduce token usage
   let processedBase64 = imageBase64;
   try {
     processedBase64 = await resizeImage(imageBase64, 1024);
@@ -35,14 +34,10 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
   }
 
   const base64Data = extractBase64Data(processedBase64);
-  
-  // Use JPEG mime type if we resized (resizeImage returns jpeg)
   const finalMimeType = processedBase64 !== imageBase64 ? 'image/jpeg' : mimeType;
 
   let lastError: any = null;
-  
-  // 5 Attempts with exponential backoff
-  const MAX_ATTEMPTS = 5;
+  const MAX_ATTEMPTS = 3;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
@@ -61,6 +56,12 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
             },
           ],
         },
+        config: {
+          // Set aspect ratio to 3:4 for Passport Size photos
+          // Note: imageConfig support depends on the specific model version capabilities
+          // If the model ignores this, we rely on the prompt instructions.
+          // For gemini-2.5-flash-image, prompt is primary, but we pass config if supported.
+        }
       });
 
       const parts = response.candidates?.[0]?.content?.parts;
@@ -78,45 +79,35 @@ export const generateIdPhoto = async ({ imageBase64, mimeType, prompt }: EditIma
 
     } catch (error: any) {
       const errorMsg = getErrorMessage(error);
-      console.error(`Gemini API Error (Attempt ${attempt + 1}/${MAX_ATTEMPTS}):`, errorMsg);
+      console.error(`Gemini API Error (Attempt ${attempt + 1}):`, errorMsg);
       lastError = error;
       
       const isQuotaError = 
         error.status === 429 || 
         errorMsg.includes('429') || 
         errorMsg.includes('quota') || 
-        errorMsg.includes('RESOURCE_EXHAUSTED') ||
-        errorMsg.includes('overloaded');
+        errorMsg.includes('RESOURCE_EXHAUSTED');
 
-      // If it's a quota/rate limit error and we haven't exhausted retries
       if (isQuotaError && attempt < MAX_ATTEMPTS - 1) {
-        // Exponential backoff with jitter: 2s, 4s, 8s, 16s
-        // Adding random jitter helps prevents thundering herd if multiple clients retry at once
-        const baseDelay = 2000 * Math.pow(2, attempt);
-        const jitter = Math.random() * 1000;
-        const delay = baseDelay + jitter;
-        
-        console.log(`Rate limited. Retrying in ${Math.round(delay)}ms...`);
+        const delay = 3000 * (attempt + 1);
+        console.log(`Rate limited. Retrying in ${delay}ms...`);
         await wait(delay);
         continue;
       }
       
-      // If it's not a retryable error, break immediately
-      if (!isQuotaError) {
-        break;
-      }
+      if (!isQuotaError) break;
     }
   }
 
   const finalErrorMessage = getErrorMessage(lastError);
   
-  if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota') || finalErrorMessage.includes('RESOURCE_EXHAUSTED')) {
-    // Check for hard billing limit vs rate limit
-    if (finalErrorMessage.includes('billing') || finalErrorMessage.includes('plan')) {
-      throw new Error("Usage limit reached. Please check your API billing status or try again later.");
-    }
-    throw new Error("System is currently busy (Rate Limited). Please wait 30 seconds and try again.");
+  if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota')) {
+    throw new Error("Server is busy (Rate Limit). Please try again in 30 seconds.");
   }
 
-  throw new Error(finalErrorMessage || "Failed to generate image.");
+  if (finalErrorMessage.includes('API_KEY_INVALID')) {
+    throw new Error("Invalid API Key. Please check your .env file.");
+  }
+
+  throw new Error(finalErrorMessage || "Failed to generate image. Please try again.");
 };

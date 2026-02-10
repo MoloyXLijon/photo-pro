@@ -12,7 +12,7 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [customInstructions, setCustomInstructions] = useState<string>("white background, wearing a formal black suit jacket and tie");
+  const [customInstructions, setCustomInstructions] = useState<string>("black formal suit and tie");
 
   const handleImageSelect = (data: string, type: string) => {
     setSelectedImage(data);
@@ -34,13 +34,15 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    // Construct a robust prompt to ensure the face is preserved while changing outfit and background.
-    const prompt = `Edit this photo to look like a professional ID card or passport photo.
-    1. STRICTLY PRESERVE the person's face, head shape, hair, and facial identity. Do not alter their facial features at all.
-    2. Change the background to a clean, plain white background.
-    3. Change the person's clothing to a formal professional ${customInstructions}.
-    4. Ensure the lighting is balanced and professional.
-    5. Crop and frame it as a standard portrait ID photo.`;
+    // Highly optimized prompt for ID photos
+    const prompt = `Task: Create a professional passport-size ID photo from this image.
+    
+    CRITICAL RULES:
+    1. FACE PRESERVATION: STRICTLY Keep the person's face, hair, and head shape EXACTLY as they are. Do NOT modify facial features.
+    2. ATTIRE: Change the person's clothing to a professional ${customInstructions}. Ensure it fits naturally over the shoulders.
+    3. BACKGROUND: Change the background to a clean, solid WHITE background.
+    4. FORMAT: Crop the image to a 3:4 aspect ratio (Passport size). Center the person properly.
+    5. QUALITY: Ensure studio-like lighting on the face and high resolution.`;
 
     try {
       const generatedImage = await generateIdPhoto({
@@ -49,7 +51,6 @@ const App: React.FC = () => {
         prompt,
       });
       setResultImage(generatedImage);
-      // Add new image to the beginning of the history array
       setHistory(prev => [generatedImage, ...prev]);
     } catch (err: any) {
       setError(err.message || "Failed to generate image. Please try again.");
@@ -122,17 +123,17 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Clothing Style
+                    Clothing Style (Dress Code)
                   </label>
                   <input
                     type="text"
                     value={customInstructions}
                     onChange={(e) => setCustomInstructions(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-800"
-                    placeholder="E.g., dark blue suit, tuxedo, formal shirt"
+                    placeholder="E.g., black formal suit, tuxedo, blue shirt"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Describe what you want the person to wear.
+                    What should the person wear in the ID photo?
                   </p>
                 </div>
 
@@ -166,8 +167,7 @@ const App: React.FC = () => {
               <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
                 <li>Use a photo with good lighting on the face.</li>
                 <li>Face the camera directly (no side profiles).</li>
-                <li>Avoid photos where part of the head is cut off.</li>
-                <li>The AI will try to keep the face exactly as is.</li>
+                <li>Ensure the original face is clearly visible.</li>
               </ul>
             </div>
           </div>
